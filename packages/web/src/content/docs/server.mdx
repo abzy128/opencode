@@ -95,6 +95,8 @@ The opencode server exposes the following APIs.
 | `GET`   | `/global/event`  | Get global events (SSE stream) | Event stream                         |
 | `GET`   | `/global/config` | Get global config info         | <a href={typesUrl}><code>Config</code></a> |
 | `PATCH` | `/global/config` | Update global config           | <a href={typesUrl}><code>Config</code></a> |
+| `POST`  | `/global/dispose` | Dispose all instances         | `boolean`                            |
+| `POST`  | `/global/upgrade` | Upgrade opencode              | `{ success, version? , error? }`    |
 
 ---
 
@@ -104,6 +106,8 @@ The opencode server exposes the following APIs.
 | ------ | ------------------ | ----------------------- | --------------------------------------------- |
 | `GET`  | `/project`         | List all projects       | <a href={typesUrl}><code>Project[]</code></a> |
 | `GET`  | `/project/current` | Get the current project | <a href={typesUrl}><code>Project</code></a>   |
+| `POST` | `/project/git/init` | Initialize git for the current project | <a href={typesUrl}><code>Project</code></a> |
+| `PATCH` | `/project/:projectID` | Update project metadata | <a href={typesUrl}><code>Project</code></a> |
 
 ---
 
@@ -113,6 +117,7 @@ The opencode server exposes the following APIs.
 | ------ | ------- | ------------------------------------ | ------------------------------------------- |
 | `GET`  | `/path` | Get the current path                 | <a href={typesUrl}><code>Path</code></a>    |
 | `GET`  | `/vcs`  | Get VCS info for the current project | <a href={typesUrl}><code>VcsInfo</code></a> |
+| `GET`  | `/vcs/diff` | Get the current VCS diff         | <a href={typesUrl}><code>FileDiff[]</code></a> |
 
 ---
 
@@ -121,6 +126,20 @@ The opencode server exposes the following APIs.
 | Method | Path                | Description                  | Response  |
 | ------ | ------------------- | ---------------------------- | --------- |
 | `POST` | `/instance/dispose` | Dispose the current instance | `boolean` |
+
+---
+
+### PTY
+
+| Method | Path                  | Description                         | Response |
+| ------ | --------------------- | ----------------------------------- | -------- |
+| `GET`  | `/pty/shells`         | List available shells               | Shell list |
+| `GET`  | `/pty`                | List PTY sessions                   | PTY session list |
+| `POST` | `/pty`                | Create a PTY session                | PTY session |
+| `GET`  | `/pty/:ptyID`         | Get a PTY session                   | PTY session |
+| `PUT`  | `/pty/:ptyID`         | Update a PTY session                | PTY session |
+| `DELETE` | `/pty/:ptyID`       | Remove a PTY session                | `boolean` |
+| `GET`  | `/pty/:ptyID/connect` | Connect to a PTY session (WebSocket) | WebSocket upgrade |
 
 ---
 
@@ -134,6 +153,16 @@ The opencode server exposes the following APIs.
 
 ---
 
+### Sync
+
+| Method | Path            | Description                   | Response |
+| ------ | --------------- | ----------------------------- | -------- |
+| `POST` | `/sync/start`   | Start workspace sync          | `boolean` |
+| `POST` | `/sync/replay`  | Replay sync events            | `{ sessionID: string }` |
+| `POST` | `/sync/history` | List sync event history       | Sync event array |
+
+---
+
 ### Provider
 
 | Method | Path                             | Description                          | Response                                                                            |
@@ -142,6 +171,25 @@ The opencode server exposes the following APIs.
 | `GET`  | `/provider/auth`                 | Get provider authentication methods  | `{ [providerID: string]: `<a href={typesUrl}>ProviderAuthMethod[]</a>` }`           |
 | `POST` | `/provider/{id}/oauth/authorize` | Authorize a provider using OAuth     | <a href={typesUrl}><code>ProviderAuthAuthorization</code></a>                       |
 | `POST` | `/provider/{id}/oauth/callback`  | Handle OAuth callback for a provider | `boolean`                                                                           |
+
+---
+
+### Permissions
+
+| Method | Path                           | Description                     | Response |
+| ------ | ------------------------------ | ------------------------------- | -------- |
+| `GET`  | `/permission`                  | List pending permission requests | Permission request list |
+| `POST` | `/permission/:requestID/reply` | Reply to a permission request   | `boolean` |
+
+---
+
+### Questions
+
+| Method | Path                         | Description                  | Response |
+| ------ | ---------------------------- | ---------------------------- | -------- |
+| `GET`  | `/question`                  | List pending questions       | Question request list |
+| `POST` | `/question/:requestID/reply` | Reply to a question request  | `boolean` |
+| `POST` | `/question/:requestID/reject` | Reject a question request   | `boolean` |
 
 ---
 
@@ -177,6 +225,9 @@ The opencode server exposes the following APIs.
 | `GET`  | `/session/:id/message`            | List messages in a session              | query: `limit?`, returns `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}[]`                                                        |
 | `POST` | `/session/:id/message`            | Send a message and wait for response    | body: `{ messageID?, model?, agent?, noReply?, system?, tools?, parts }`, returns `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}` |
 | `GET`  | `/session/:id/message/:messageID` | Get message details                     | Returns `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}`                                                                           |
+| `DELETE` | `/session/:id/message/:messageID` | Delete a message                     | Returns `boolean` |
+| `DELETE` | `/session/:id/message/:messageID/part/:partID` | Delete a message part | Returns `boolean` |
+| `PATCH` | `/session/:id/message/:messageID/part/:partID` | Update a message part | Returns <a href={typesUrl}><code>Part</code></a> |
 | `POST` | `/session/:id/prompt_async`       | Send a message asynchronously (no wait) | body: same as `/session/:id/message`, returns `204 No Content`                                                                                                        |
 | `POST` | `/session/:id/command`            | Execute a slash command                 | body: `{ messageID?, agent?, model?, command, arguments }`, returns `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}`               |
 | `POST` | `/session/:id/shell`              | Run a shell command                     | body: `{ agent, model?, command }`, returns `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}`                                       |
@@ -221,14 +272,49 @@ The opencode server exposes the following APIs.
 
 ---
 
+### Experimental
+
+| Method | Path                         | Description                               | Response |
+| ------ | ---------------------------- | ----------------------------------------- | -------- |
+| `GET`  | `/experimental/console`      | Get active Console metadata               | Console metadata |
+| `GET`  | `/experimental/console/orgs` | List switchable Console orgs              | Org list |
+| `POST` | `/experimental/console/switch` | Switch active Console org               | `boolean` |
+| `POST` | `/experimental/worktree`     | Create a worktree                         | Worktree info |
+| `GET`  | `/experimental/worktree`     | List worktrees                            | `string[]` |
+| `DELETE` | `/experimental/worktree`   | Remove a worktree                         | `boolean` |
+| `POST` | `/experimental/worktree/reset` | Reset a worktree                        | `boolean` |
+| `GET`  | `/experimental/session`      | List sessions across projects             | Session list |
+| `GET`  | `/experimental/resource`     | List MCP resources                        | Resource map |
+
+---
+
+### Experimental Workspace
+
+| Method | Path                                            | Description                         | Response |
+| ------ | ----------------------------------------------- | ----------------------------------- | -------- |
+| `GET`  | `/experimental/workspace/adaptor`               | List workspace adaptors             | Workspace adaptor list |
+| `GET`  | `/experimental/workspace`                       | List workspaces                     | Workspace list |
+| `POST` | `/experimental/workspace`                       | Create a workspace                  | Workspace |
+| `GET`  | `/experimental/workspace/status`                | Get workspace connection status     | Workspace status list |
+| `DELETE` | `/experimental/workspace/:id`                 | Remove a workspace                  | Workspace or `null` |
+| `POST` | `/experimental/workspace/:id/session-restore`   | Restore a session into a workspace  | `{ total: number }` |
+
+---
+
 ### LSP, Formatters & MCP
 
-| Method | Path         | Description                | Response                                                 |
-| ------ | ------------ | -------------------------- | -------------------------------------------------------- |
-| `GET`  | `/lsp`       | Get LSP server status      | <a href={typesUrl}><code>LSPStatus[]</code></a>          |
-| `GET`  | `/formatter` | Get formatter status       | <a href={typesUrl}><code>FormatterStatus[]</code></a>    |
-| `GET`  | `/mcp`       | Get MCP server status      | `{ [name: string]: `<a href={typesUrl}>MCPStatus</a>` }` |
-| `POST` | `/mcp`       | Add MCP server dynamically | body: `{ name, config }`, returns MCP status object      |
+| Method | Path                           | Description                       | Response                                                 |
+| ------ | ------------------------------ | --------------------------------- | -------------------------------------------------------- |
+| `GET`  | `/lsp`                         | Get LSP server status             | <a href={typesUrl}><code>LSPStatus[]</code></a>          |
+| `GET`  | `/formatter`                   | Get formatter status              | <a href={typesUrl}><code>FormatterStatus[]</code></a>    |
+| `GET`  | `/mcp`                         | Get MCP server status             | `{ [name: string]: `<a href={typesUrl}>MCPStatus</a>` }` |
+| `POST` | `/mcp`                         | Add MCP server dynamically        | body: `{ name, config }`, returns MCP status object      |
+| `POST` | `/mcp/:name/auth`              | Start MCP OAuth                   | `{ authorizationUrl: string }` |
+| `POST` | `/mcp/:name/auth/callback`     | Complete MCP OAuth callback       | MCP status object |
+| `POST` | `/mcp/:name/auth/authenticate` | Authenticate MCP OAuth in one step | MCP status object |
+| `DELETE` | `/mcp/:name/auth`            | Remove MCP OAuth credentials      | `{ success: true }` |
+| `POST` | `/mcp/:name/connect`           | Connect an MCP server             | `boolean` |
+| `POST` | `/mcp/:name/disconnect`        | Disconnect an MCP server          | `boolean` |
 
 ---
 
@@ -237,6 +323,14 @@ The opencode server exposes the following APIs.
 | Method | Path     | Description               | Response                                    |
 | ------ | -------- | ------------------------- | ------------------------------------------- |
 | `GET`  | `/agent` | List all available agents | <a href={typesUrl}><code>Agent[]</code></a> |
+
+---
+
+### Skills
+
+| Method | Path     | Description               | Response                                    |
+| ------ | -------- | ------------------------- | ------------------------------------------- |
+| `GET`  | `/skill` | List all available skills | Skill list |
 
 ---
 
@@ -261,6 +355,8 @@ The opencode server exposes the following APIs.
 | `POST` | `/tui/clear-prompt`     | Clear the prompt                            | `boolean`              |
 | `POST` | `/tui/execute-command`  | Execute a command (`{ command }`)           | `boolean`              |
 | `POST` | `/tui/show-toast`       | Show toast (`{ title?, message, variant }`) | `boolean`              |
+| `POST` | `/tui/publish`          | Publish a TUI event                         | `boolean`              |
+| `POST` | `/tui/select-session`   | Select a session in the TUI                 | `boolean`              |
 | `GET`  | `/tui/control/next`     | Wait for the next control request           | Control request object |
 | `POST` | `/tui/control/response` | Respond to a control request (`{ body }`)   | `boolean`              |
 
@@ -268,9 +364,10 @@ The opencode server exposes the following APIs.
 
 ### Auth
 
-| Method | Path        | Description                                                     | Response  |
-| ------ | ----------- | --------------------------------------------------------------- | --------- |
-| `PUT`  | `/auth/:id` | Set authentication credentials. Body must match provider schema | `boolean` |
+| Method | Path                 | Description                                                     | Response  |
+| ------ | -------------------- | --------------------------------------------------------------- | --------- |
+| `PUT`  | `/auth/:providerID`  | Set authentication credentials. Body must match provider schema | `boolean` |
+| `DELETE` | `/auth/:providerID` | Remove authentication credentials                              | `boolean` |
 
 ---
 
